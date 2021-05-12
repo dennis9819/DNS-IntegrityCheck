@@ -39,11 +39,13 @@ def testThread(req,server, trace_id):
                 "error": "Timeout",
                 "server": p_ip
             }
+            provider.fault(p_ip)
         except ConnectionRefusedError:
             data = {
                 "error": "Connection Refused",
                 "server": p_ip
             }
+            provider.fault(p_ip)
         except:
             print("Unexpected error:", sys.exc_info()[0])
             data = {
@@ -52,7 +54,7 @@ def testThread(req,server, trace_id):
             }            
         results.append(data)
     
-
+    server.providers.print()
     # print (json.dumps(results, indent=4, sort_keys=True))
 
     # dump response to file

@@ -44,20 +44,32 @@ class DNSProviderObject:
         p = subprocess.Popen(['ping', '-c', '1' ,'-W', '0.2', IP], stdout = subprocess.PIPE)
         outLines = p.communicate()[0].decode("utf-8").splitlines()
         if len(outLines) < 6:
-            self.state[index] = False
+            self.state[index] = 1
             return
 
         timeLine = outLines[5]
         timeSubStr = timeLine[23:-3].split('/')
-        self.state[index] = True
+        self.state[index] = 0
         self.ping[index] = float(timeSubStr[1])
+
+    # mark as faulted
+    def fault(self, IP):
+        index = self.IPs.index(IP)
+        if self.state[index] == 0:
+            self.state[index] = 2
+        elif self.state[index] >= 9:
+            self.state[index] = 1
+        elif self.state[index] > 1:
+            self.state[index] += 1
+
+        self.selectMaster()
 
     # add ip to Provider and check state
     def addIP(self, ip, comment):
         # print("[INFO]    Adding IP: {} - Comment: {} - Provider: {}".format(ip, comment, self.providerName))
         self.IPs.append(ip)
         self.comments.append(comment)
-        self.state.append(False)
+        self.state.append(1)
         self.isMaster.append(False)
         self.ping.append(-1)
         self.ipCount += 1
@@ -74,7 +86,12 @@ class DNSProviderObject:
         lowesValue = 10000
         count = 0
         for ping in self.ping:
+            # ignore offline or faulted
             self.isMaster[count] = False
+            if self.state[count] == 1:
+                count += 1
+                continue
+            
             if ping < lowesValue and ping > -1:
                 lowesValue = ping
                 lowestID = count
@@ -90,9 +107,9 @@ class DNSProviderObject:
         else:
             print("    id: " + bcolors.OKBLUE + self.id + bcolors.ENDC)
         count = 0
-        print(bcolors.BOLD + "server            state    ping      role      desc"+ bcolors.ENDC)
+        print(bcolors.BOLD + "server            state          ping      role      desc"+ bcolors.ENDC)
         for server in self.IPs:
-            rowFormat = "{:<18}{:<10}{:>10} {:<10}{:<30}"
+            rowFormat = "{:<18}{:<10}{:>16} {:<10}{:<30}"
             state = bcolors.FAIL + "OFFLINE " + bcolors.ENDC
             master = ""
             if self.isMaster[count]:
@@ -100,8 +117,10 @@ class DNSProviderObject:
             ping = "∞"
             if self.ping[count] > -1:
                 ping = "{} ms".format(self.ping[count])
-            if self.state[count]:
+            if self.state[count] == 0:
                 state = bcolors.OKGREEN + "ONLINE  " + bcolors.ENDC
+            if self.state[count] >= 2:
+                state = bcolors.WARNING + "FAULTED ({})".format(self.state[count]-1) + bcolors.ENDC
             row = rowFormat.format(server, state, ping, master, self.comments[count])
             print(row)
             count += 1
