@@ -12,6 +12,7 @@ This is a side-project I do for fun. I know that this design has some flaws.
 
 ## Run Server
 For Testing:
+
     python3 DNSServer.py -c <path to config>
 
 The server runs on Port 5354
@@ -25,6 +26,7 @@ When starting, the script pings all servers and determins the fastest server for
 
 The Primary DNS-Server is marked with $master
 Example:
+
     # this is a comment
     [CloudFlare] # define new provider
     $master      # mark provider as primary
