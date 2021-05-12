@@ -5,11 +5,12 @@
 # Date created: 12.05.2021
 # Python Version: 3.6
 
+import socket
 from DNSDecodeUDP import processReq
 import _thread
 import json
 import uuid
-
+import sys
 
 def testServer(req,server):
     # generate new thread
@@ -33,12 +34,22 @@ def testThread(req,server, trace_id):
             if TCPanswer:
                 UDPanswer = TCPanswer[2:]
                 data = processReq(req,UDPanswer,p_ip)
-        except:
+        except socket.timeout:
             data = {
                 "error": "Timeout",
                 "server": p_ip
             }
-
+        except ConnectionRefusedError:
+            data = {
+                "error": "Connection Refused",
+                "server": p_ip
+            }
+        except:
+            print("Unexpected error:", sys.exc_info()[0])
+            data = {
+                "error": "Unexpected Error",
+                "server": p_ip
+            }            
         results.append(data)
     
 

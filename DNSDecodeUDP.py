@@ -33,7 +33,7 @@ def decodeResponse(data,server):
 
     # add data to dict
     decodedData["server"] = server
-    decodedData["f_id"] = f_ident
+    decodedData["f_id"] = int.from_bytes(f_ident, "big")
     decodedData["f_question"] = int.from_bytes(f_question, "big")
     decodedData["f_answer"] = int.from_bytes(f_answer, "big")
     decodedData["f_authority"] = int.from_bytes(f_authority, "big")
