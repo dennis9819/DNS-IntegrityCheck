@@ -28,7 +28,8 @@ class DNSProviderObject:
         self.isMaster = []
         self.id = providerName.replace(' ','').lower()
         self.timeRegex = '^.*time\ '
-    
+        self.master = False
+        self.masterIP = ''
     # check if ip is reachable and set the corresponding state
     def checkIP(self, IP):
         index = self.IPs.index(IP)
@@ -46,7 +47,6 @@ class DNSProviderObject:
         timeSubStr = timeLine[23:-3].split('/')
         self.state[index] = True
         self.ping[index] = float(timeSubStr[1])
-        print("Done pinging " + IP)
 
     # add ip to Provider and check state
     def addIP(self, ip, comment):
@@ -59,6 +59,9 @@ class DNSProviderObject:
         self.ipCount += 1
         # Check if Server is reachable
         self.checkIP(ip)
+
+    def getIP(self):
+        return self.masterIP
 
     def selectMaster(self):
         if len(self.isMaster) == 0:
@@ -73,11 +76,15 @@ class DNSProviderObject:
                 lowestID = count
             count += 1
         self.isMaster[lowestID] = True
+        self.masterIP = self.IPs[lowestID]
 
     # debug print object content
     def print(self):
         print( bcolors.BOLD + "==> Provider Info for " + bcolors.OKBLUE + self.providerName + bcolors.ENDC)
-        print("    id: " + bcolors.OKBLUE + self.id + bcolors.ENDC)
+        if self.master:
+            print("    id: " + bcolors.OKBLUE + self.id + bcolors.ENDC + "  |  " + bcolors.WARNING + "MASTER-Provider" + bcolors.ENDC)
+        else:
+            print("    id: " + bcolors.OKBLUE + self.id + bcolors.ENDC)
         count = 0
         print(bcolors.BOLD + "server            state    ping      role      desc"+ bcolors.ENDC)
         for server in self.IPs:
@@ -102,6 +109,7 @@ class DNSProviderObject:
 class DNSProviders:
     def __init__(self):
         self.providers = []
+        self.master = None
 
     # load provider config
     def loadFromFile(self,file):
@@ -124,7 +132,13 @@ class DNSProviders:
                 continue
 
             if strippedLine.startswith("$"):
-                # custom. implement later
+                if strippedLine == "$master":
+                    # remove old master
+                    if not self.master == None:
+                        self.master.master = False
+                    # set new master
+                    self.providers[-1].master = True
+                    self.master = self.providers[-1]
                 continue
             
             # split if it has comments
@@ -152,8 +166,4 @@ class DNSProviders:
         for provider in self.providers:
             provider.print()
 
-
-providers = DNSProviders()
-providers.loadFromFile('/home/dennisgunia/DNS-IntegrityCheck/providers/ger_default-providers.conf')
-providers.print()
 

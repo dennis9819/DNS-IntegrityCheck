@@ -1,55 +1,62 @@
+from DNSTestThread import testServer
+from DNSDecodeUDP import processReq
 import socket
 import sys
-import struct
-import thread
+import _thread
+import traceback
+import binascii
 
-# convert the UDP DNS query to the TCP DNS query
-def getTcpQuery(query):
-    message = "\x00"+ chr(len(query)) + query
-    return message
+class DNSProxyServer:
+    def __init__(self, port, providers):
+        self.port = int(port)
+        self.providers = providers
+        self.host = "127.0.0.1"
+        print("[INFO ]   Opening on {}:{}".format(self.host,self.port)) 
+        try:
+            # setup a UDP server to get the UDP DNS request
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.bind((self.host, self.port))
+            while True:
+                data, addr = sock.recvfrom(1024)
+                _thread.start_new_thread(self.handler, (data, addr, sock, providers.master.getIP()))
+        except OSError as err:
+            print("[ERROR]   {}".format(err)) 
+        except TypeError as err:
+            print("[ERROR]   {}".format(err)) 
+        except:
+            print("Unexpected error:", sys.exc_info()[0])
+            traceback.print_exc()
+            sock.close()
 
-# send a TCP DNS query to the upstream DNS server
-def sendTCP(DNSserverIP, query):
-    server = (DNSserverIP, 53)
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.connect(server)
-    tcp_query = getTcpQuery(query)
-    sock.send(tcp_query)  	
-    data = sock.recv(1024)
-    return data
-
-# a new thread to handle the UPD DNS request to TCP DNS request
-def handler(data, addr, socket, DNSserverIP):
-    #print "Request from client: ", data.encode("hex"), addr
-    #print ""
-    TCPanswer = sendTCP(DNSserverIP, data)
-    #print "TCP Answer from server: ", TCPanswer.encode("hex")
-    #print ""
-    if TCPanswer:
-        rcode = TCPanswer[:6].encode("hex")
-        rcode = str(rcode)[11:]
-        #print "RCODE: ", rcode
-        if (int(rcode, 16) == 1):
-            print "Request is not a DNS query. Format Error!"
-        else:
-            print "Success!"
+    # a new thread to handle the UPD DNS request to TCP DNS request
+    def handler(self, data, addr, socket, DNSserverIP):
+        #print "Request from client: ", data.encode("hex"), addr
+        #print ""
+        TCPanswer = self.sendTCP(DNSserverIP, data)
+        #print "TCP Answer from server: ", TCPanswer.encode("hex")
+        #print ""
+        if TCPanswer:
+            #print ("Success!")
             UDPanswer = TCPanswer[2:]
-            #print "UDP Answer: ", UDPanswer.encode("hex")
+            #processReq(data,UDPanswer,DNSserverIP)
             socket.sendto(UDPanswer, addr)
-    else:
-        print "Request is not a DNS query. Format Error!"
+            testServer(data,self)
+        else:
+            print ("Request is not a DNS query. Format Error!")
 
-if __name__ == '__main__':
-    DNSserverIP = sys.argv[1]
-    port = int(sys.argv[2])
-    host = ''
-    try:
-        # setup a UDP server to get the UDP DNS request
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.bind((host, port))
-        while True:
-            data, addr = sock.recvfrom(1024)
-            thread.start_new_thread(handler, (data, addr, sock, DNSserverIP))
-    except Exception, e:
-        print e
-        sock.close()
+    # convert the UDP DNS query to the TCP DNS query
+    def getTcpQuery(self, query):
+
+        length = binascii.unhexlify("%04x" % len(query)) 
+        return length + query
+
+    # send a TCP DNS query to the upstream DNS server
+    def sendTCP(self, DNSserverIP, query):
+        server = (DNSserverIP, 53)
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(1)
+        sock.connect(server)
+        tcp_query = self.getTcpQuery(query)
+        sock.send(tcp_query)  	
+        data = sock.recv(1024)
+        return data
