@@ -1,3 +1,12 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Author: Yibin Liao
+# Modified by: Dennis Gunia
+# Date created: 30.03.2021
+# Python Version: 3.6
+
+
 from DNSTestThread import testServer
 from DNSDecodeUDP import processReq
 import socket
@@ -30,15 +39,9 @@ class DNSProxyServer:
 
     # a new thread to handle the UPD DNS request to TCP DNS request
     def handler(self, data, addr, socket, DNSserverIP):
-        #print "Request from client: ", data.encode("hex"), addr
-        #print ""
         TCPanswer = self.sendTCP(DNSserverIP, data)
-        #print "TCP Answer from server: ", TCPanswer.encode("hex")
-        #print ""
         if TCPanswer:
-            #print ("Success!")
             UDPanswer = TCPanswer[2:]
-            #processReq(data,UDPanswer,DNSserverIP)
             socket.sendto(UDPanswer, addr)
             testServer(data,self)
         else:

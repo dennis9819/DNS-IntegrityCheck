@@ -1,4 +1,4 @@
-#DNS Integrity Server 
+# DNS Integrity Server 
 
 This server acts as an DNS "Proxy" and transparently forwards the request to an specified server. The answer ist then sent back to the requestiing client.
 In addition to that, the server takes a list of other DNS-Servers and forwards the request to these as well. The results are now stored in ./debug.
@@ -15,7 +15,9 @@ For Testing:
 
     python3 DNSServer.py -c <path to config>
 
-The server runs on Port 5354
+The server runs on Port 5354. This can be changed by specifiying the port using:
+
+    python3 DNSServer.py -c <path to config> -p <port>
 
 ## Config-File
 The Config-File contains all DNS-Servers that should be checked.
@@ -40,9 +42,9 @@ It is also possible to define an aliad/comment.
 
 
 ## Sources
-* (http://www.tcpipguide.com/free/t_DNSMessageHeaderandQuestionSectionFormat.htm)
-* (http://www.tcpipguide.com/free/t_DNSMessageResourceRecordFieldFormats.htm)
-* (http://doc-tcpip.org/Dns/named.dns.message.html)
-* (https://www.iana.org/assignments/dns-parameters/dns-parameters.xhtml)
-* (https://datatracker.ietf.org/doc/html/rfc1035)
-* (http://www.tcpipguide.com/free/t_DNSNameNotationandMessageCompressionTechnique.htm)
+* http://www.tcpipguide.com/free/t_DNSMessageHeaderandQuestionSectionFormat.htm
+* http://www.tcpipguide.com/free/t_DNSMessageResourceRecordFieldFormats.htm
+* http://doc-tcpip.org/Dns/named.dns.message.html
+* https://www.iana.org/assignments/dns-parameters/dns-parameters.xhtml
+* https://datatracker.ietf.org/doc/html/rfc1035
+* http://www.tcpipguide.com/free/t_DNSNameNotationandMessageCompressionTechnique.htm

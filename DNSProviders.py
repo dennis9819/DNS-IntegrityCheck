@@ -1,9 +1,13 @@
-#import pyping
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Author: Dennis Gunia
+# Date created: 30.03.2021
+# Python Version: 3.6
+
 import socket
-import os
 import subprocess
 from subprocess import DEVNULL, STDOUT, check_call
-import re
 
 class bcolors:
     HEADER = '\033[95m'

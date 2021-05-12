@@ -1,3 +1,12 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Author: Dennis Gunia
+# Date created: 12.05.2021
+# Python Version: 3.6
+
+# Dict for QueryType Lookup
+# TODO: Complete List!
 DNSQueryType = {
     0: "Reserved",
     1: "A",

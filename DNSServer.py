@@ -1,3 +1,10 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Author: Dennis Gunia
+# Date created: 30.03.2021
+# Python Version: 3.6
+
 import DNSProviders 
 import DNSProxyServer
 import sys, getopt
@@ -8,6 +15,8 @@ def printUsage():
 def main(argv):
     providerconfig = ''
     port = 5354
+
+    # load args
     try:
         opts, args = getopt.getopt(argv,"hc:p:",["config=","port="])
     except getopt.GetoptError:
