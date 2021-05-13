@@ -5,8 +5,8 @@
 # Date created: 30.03.2021
 # Python Version: 3.6
 
-import proxy_srv.DNSProviders 
-import proxy_srv.DNSProxyServer
+import DNSProviders 
+import DNSProxyServer
 import sys, getopt
 
 def printUsage():
@@ -36,11 +36,11 @@ def main(argv):
         sys.exit(2)
 
     # load config
-    providers = proxy_srv.DNSProviders.DNSProviders()
+    providers = DNSProviders.DNSProviders()
     providers.loadFromFile(providerconfig)
     providers.print()
 
-    proxyServer = proxy_srv.DNSProxyServer.DNSProxyServer(port,providers)
+    proxyServer = DNSProxyServer.DNSProxyServer(port,providers)
     # start server
 
 

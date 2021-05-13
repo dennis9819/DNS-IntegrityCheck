@@ -5,12 +5,12 @@
 # Date created: 12.05.2021
 # Python Version: 3.6
 
-from proxy_srv.DNSQueryTypes import DNSQueryType
+from DNSQueryTypes import DNSClasses, DNSQueryType, DNSRespoonseCodes
 
 def processReq(query,response,server):
     return decodeResponse(response,server)
 
-def decodeResponse(data,server):
+def decodeResponse(data,server,root_domain = "+"):
     decodedData = {}
     #print ("[RES] RAW: ", binascii.hexlify(data))
     # decode message
@@ -36,7 +36,7 @@ def decodeResponse(data,server):
 
     # get response code
     decodedData["f_rcode"] = f_controll[1] & 0x0F
-
+    decodedData["f_rcode_RES"] = DNSRespoonseCodes[f_controll[1] & 0x0F]
     # extract payload from package
     f_payload = data[12:] 
     #debugHexDump (f_payload)
@@ -79,8 +79,10 @@ def decodeResponse(data,server):
         # add data to dict
         decodedData[dict_item]["QTYPE"] = m_qtype
         decodedData[dict_item]["QCLASS"] = m_qclass
+        decodedData[dict_item]["QCLASS_RES"] = DNSClasses[m_qclass]
         decodedData[dict_item]["QTYPE_RES"] = DNSQueryType[m_qtype]
         decodedData[dict_item]["QNAME"] = m_domain_string
+        root_domain = m_domain_string
 
         #print("Query:" , m_domain_string, DNSQueryType[m_qtype], m_qclass)
         f_QDCOUNT -= 1
@@ -118,6 +120,7 @@ def decodeResponse(data,server):
         # add data to dict
         decodedData[dict_item]["QTYPE"] = m_qtype
         decodedData[dict_item]["QCLASS"] = m_qclass
+        decodedData[dict_item]["QCLASS_RES"] = DNSClasses[m_qclass]
         decodedData[dict_item]["QTYPE_RES"] = DNSQueryType[m_qtype]
         decodedData[dict_item]["TTL"] = m_ttl
 
@@ -129,10 +132,32 @@ def decodeResponse(data,server):
         f_ANCOUNT -= 1
 
         # If Question Type of Response is A-Record, parse IP to string
-        if m_qtype == 1:
+        if m_qtype == 1:    # A
             #print("IP:", m_ip)
             m_ip = "{}.{}.{}.{}".format(int(m_data[0]),int(m_data[1]),int(m_data[2]),int(m_data[3]))
             decodedData[dict_item]["RDATA_IPv4"] = m_ip
+        elif m_qtype == 28: # AAA
+            #print("IP:", m_ip)
+            ip_block=8
+            ip_string=""
+            while ip_block > 0:
+                ip_block -= 1
+                if ip_block < 7:
+                    ip_string += ":"
+                byte_start = (7-ip_block) * 2
+                byte_end = byte_start + 2
+                ip_block_bytes = m_data[byte_start:byte_end]
+                ip_block_int = int.from_bytes(ip_block_bytes, "big")
+                ip_string += ("{0:#0{1}x}".format(ip_block_int,6))[2:]
+            decodedData[dict_item]["RDATA_IPv6"] = ip_string
+        elif m_qtype == 2:   # NS
+            decodedData[dict_item]["RDATA_NS"] = resolveURL(m_data,root_domain)
+        elif m_qtype == 5:   # CNAME
+            decodedData[dict_item]["RDATA_CNAME"] = resolveURL(m_data,root_domain)
+            # parse url
+            
+
+
 
     return decodedData
 
@@ -167,3 +192,24 @@ def debugHexDump(data):
         print ("|{}|".format(""))   #TODO: Implement at some point ... probably
 
   
+def resolveURL(data,root_domain):
+    # read length of first domain part
+    p_len = int.from_bytes(data[0:1], "big")
+    p_offset = 1
+    p_domain_string = ""
+    while(p_len > 0): # as long as next part size is bigger than 0 (terminated by len==0x00)
+        # extract string
+        m_qname = data[(p_offset):(p_offset + p_len)]
+        p_offset += p_len
+        # read length of next domain part
+        p_len = int.from_bytes(data[p_offset:p_offset +1], "big")
+        p_offset += 1
+        # build string
+        if len(p_domain_string) > 0:
+            p_domain_string += "."
+        p_string = m_qname.decode("utf-8")
+        if p_string == '+':
+            p_domain_string += root_domain
+        else:
+            p_domain_string += p_string
+    return p_domain_string

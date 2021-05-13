@@ -7,7 +7,7 @@
 
 import time
 import socket
-from proxy_srv.DNSDecodeUDP import decodeResponse, processReq
+from DNSDecodeUDP import decodeResponse, processReq
 import _thread
 import json
 import uuid
@@ -21,7 +21,7 @@ def testServer(req,server):
 def testThread(req,server, trace_id):
     
     results = []    # contains all query responses
-
+    request = decodeResponse(req, "127.0.0.1")
     for provider in server.providers.providers:
         p_ip = provider.getIP()
         if len(p_ip) == 0:
@@ -47,19 +47,19 @@ def testThread(req,server, trace_id):
                 "server": p_ip
             }
             provider.fault(p_ip)
-        except:
-            print("Unexpected error:", sys.exc_info()[0])
-            data = {
-                "error": "Unexpected Error",
-                "server": p_ip
-            }            
+        #except:
+        #    print("Unexpected error:", sys.exc_info()[0])
+        #    data = {
+        #        "error": "Unexpected Error",
+        #        "server": p_ip
+        #    }            
         results.append(data)
     
         result_body = {
             "results": results,
             "trace_id": trace_id,
             "request_time": time.time(),
-            "request": decodeResponse(req, "127.0.0.1")
+            "request": request,
         }
 
         saveTraceFile(result_body)
