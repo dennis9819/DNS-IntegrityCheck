@@ -5,15 +5,10 @@
 # Date created: 12.05.2021
 # Python Version: 3.6
 
-from DNSQueryTypes import DNSQueryType
+from proxy_srv.DNSQueryTypes import DNSQueryType
 
 def processReq(query,response,server):
-    # decodeQuery(query)
     return decodeResponse(response,server)
-
-# not required for now but probybly later on
-#def decodeQuery(data):
-    #print ("[REQ] RAW: ", binascii.hexlify(data))
 
 def decodeResponse(data,server):
     decodedData = {}

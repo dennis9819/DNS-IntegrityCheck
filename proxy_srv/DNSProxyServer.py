@@ -7,8 +7,8 @@
 # Python Version: 3.6
 
 
-from DNSTestThread import testServer
-from DNSDecodeUDP import processReq
+from proxy_srv.DNSTestThread import testServer
+from proxy_srv.DNSDecodeUDP import processReq
 import socket
 import sys
 import _thread

@@ -5,8 +5,9 @@
 # Date created: 12.05.2021
 # Python Version: 3.6
 
+import time
 import socket
-from DNSDecodeUDP import processReq
+from proxy_srv.DNSDecodeUDP import decodeResponse, processReq
 import _thread
 import json
 import uuid
@@ -54,10 +55,27 @@ def testThread(req,server, trace_id):
             }            
         results.append(data)
     
-    server.providers.print()
+        result_body = {
+            "results": results,
+            "trace_id": trace_id,
+            "request_time": time.time(),
+            "request": decodeResponse(req, "127.0.0.1")
+        }
+
+        saveTraceFile(result_body)
+    # server.providers.print()
     # print (json.dumps(results, indent=4, sort_keys=True))
 
-    # dump response to file
-    filename = "debug/trace_{}.json".format(trace_id)
-    with open(filename, 'w') as outfile:
-        json.dump(results, fp=outfile, indent=4, sort_keys=True )
+    
+def saveTraceFile(data):
+    if False:
+        return
+    else:
+        # dump response to file
+        filename = "debug/trace_{}.json".format(data["trace_id"])
+        with open(filename, 'w') as outfile:
+            json.dump(data, fp=outfile, indent=4, sort_keys=True )
+
+
+def analyzeResults(data):
+    print
