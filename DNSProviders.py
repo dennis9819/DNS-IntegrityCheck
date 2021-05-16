@@ -20,6 +20,17 @@ class bcolors:
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
 
+# max trust value
+CONST_max_trust = 1
+# initial trust value
+CONST_initial_trust = 1
+# amount trust is reduced after incorrect response
+CONST_reduce_trust = 0.02
+# amount trust is added after correct response
+CONST_regain_trust = 0.0001
+# /|\
+#  |  may need adjustment
+
 
 class DNSProviderObject:
     ipCount = 0 # amount of imported ips for this specific provider
@@ -34,6 +45,9 @@ class DNSProviderObject:
         self.timeRegex = '^.*time\ '
         self.master = False
         self.masterIP = ''
+        self.trustValue = CONST_initial_trust
+        self.reqTrue = 0
+        self.reqFalse = 0
     # check if ip is reachable and set the corresponding state
     def checkIP(self, IP):
         index = self.IPs.index(IP)
@@ -99,6 +113,16 @@ class DNSProviderObject:
         self.isMaster[lowestID] = True
         self.masterIP = self.IPs[lowestID]
 
+    def invalidReq(self):
+        self.trustValue -= CONST_reduce_trust
+        self.reqFalse += 1
+
+    def validReq(self):
+        self.trustValue += CONST_regain_trust
+        if self.trustValue > CONST_max_trust:
+            self.trustValue = CONST_max_trust
+        self.reqTrue += 1
+
     # debug print object content
     def print(self):
         print( bcolors.BOLD + "==> Provider Info for " + bcolors.OKBLUE + self.providerName + bcolors.ENDC)
@@ -133,6 +157,14 @@ class DNSProviders:
     def __init__(self):
         self.providers = []
         self.master = None
+
+    def getProvider(self,ip):
+        for provider in self.providers:
+            if ip in provider.IPs:
+                return provider
+            else:
+                continue
+    
 
     # load provider config
     def loadFromFile(self,file):

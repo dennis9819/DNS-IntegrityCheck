@@ -7,10 +7,10 @@
 
 from DNSQueryTypes import DNSClasses, DNSQueryType, DNSRespoonseCodes
 
-def processReq(query,response,server):
+def processReq(query:bytearray, response:bytearray, server:str):
     return decodeResponse(response,server)
 
-def decodeResponse(data,server,root_domain = "+"):
+def decodeResponse(data: bytearray, server: str, root_domain:str = "+"):
     decodedData = {}
     #print ("[RES] RAW: ", binascii.hexlify(data))
     # decode message
@@ -27,6 +27,7 @@ def decodeResponse(data,server,root_domain = "+"):
     #print(int.from_bytes(f_additional, "big"))
 
     # add data to dict
+    decodedData["raw"] = data.hex()
     decodedData["server"] = server
     decodedData["f_id"] = int.from_bytes(f_ident, "big")
     decodedData["f_question"] = int.from_bytes(f_question, "big")
@@ -162,7 +163,7 @@ def decodeResponse(data,server,root_domain = "+"):
     return decodedData
 
 # experimental hex dump of byte-array
-def debugHexDump(data):
+def debugHexDump(data:bytearray):
     d_size = len(data)
     offest = 0x00
     while (offest < d_size):
@@ -192,7 +193,7 @@ def debugHexDump(data):
         print ("|{}|".format(""))   #TODO: Implement at some point ... probably
 
   
-def resolveURL(data,root_domain):
+def resolveURL(data:bytearray, root_domain:str):
     # read length of first domain part
     p_len = int.from_bytes(data[0:1], "big")
     p_offset = 1
