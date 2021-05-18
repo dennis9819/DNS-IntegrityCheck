@@ -110,7 +110,7 @@ class DNSPacket:
             # If Question Type of Response is A-Record, parse IP to string
             if __answerObj__.type == 1:    # A
                 m_ip = "{}.{}.{}.{}".format(int(__answerObj__.dataRaw[0]),int(__answerObj__.dataRaw[1]),int(__answerObj__.dataRaw[2]),int(__answerObj__.dataRaw[3]))
-                __answerObj__.data["RDATA_IPv4"] = m_ip
+                __answerObj__.data["IPv4"] = m_ip
             elif __answerObj__.type == 28: # AAA
                 ip_block=8
                 ip_string=""
@@ -123,11 +123,11 @@ class DNSPacket:
                     ip_block_bytes = __answerObj__.dataRaw[byte_start:byte_end]
                     ip_block_int = int.from_bytes(ip_block_bytes, "big")
                     ip_string += ("{0:#0{1}x}".format(ip_block_int,6))[2:]
-                __answerObj__.data["RDATA_IPv6"] = ip_string
+                __answerObj__.data["IPv6"] = ip_string
             elif __answerObj__.type == 2:   # NS
-                __answerObj__.data["RDATA_NS"] = self.__decompressURL(self.raw,dataStartOffset)
+                __answerObj__.data["NS"] = self.__decompressURL(self.raw,dataStartOffset)
             elif __answerObj__.type == 5:   # CNAME
-                __answerObj__.data["RDATA_CNAME"] = self.__decompressURL(self.raw,dataStartOffset)
+                __answerObj__.data["CNAME"] = self.__decompressURL(self.raw,dataStartOffset)
 
             # add and next
             couter += 1

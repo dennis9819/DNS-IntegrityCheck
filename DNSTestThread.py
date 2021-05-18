@@ -5,8 +5,10 @@
 # Date created: 12.05.2021
 # Python Version: 3.6
 
+
+from DNSPacket import DNSPacket
 from typing import ByteString
-from DNSProviders import DNSProviders
+from DNSProviders import DNSProviderObject, DNSProviders
 import time
 import socket
 from DNSDecodeUDP import decodeResponse, processReq
@@ -17,210 +19,190 @@ import sys
 from datetime import datetime
 
 
-def testServer(req: bytearray,server: DNSProviders):
+def testServer(req: bytearray,server):
     # generate new thread
     trace_id = uuid.uuid4().hex
-    _thread.start_new_thread( testThread, (req, server, trace_id,) )
+    _thread.start_new_thread( startTest, (req, server, trace_id,) )
 
-def testThread(req: bytearray, server: DNSProviders, trace_id: str):
-    
-    results = []    # contains all query responses
-    request = decodeResponse(req, "127.0.0.1")
-    for provider in server.providers.providers:
-        p_ip = provider.getIP()
-        if len(p_ip) == 0:
-            # ignore providers with no vaild IP
-            continue    
+def startTest(req: bytearray, server, trace_id: str):
+    testClass = DNSTestServerGroup(server,server.providers,req)
+    testClass.checkAll()
+    testClass.saveTraceFile(trace_id)
+    testClass.analyzeResults(trace_id)
 
-        # send reuquests
-        data = {}
-        try:        
-            TCPanswer = server.sendTCP(p_ip, req)
-            if TCPanswer:
-                UDPanswer = TCPanswer[2:]
-                data = processReq(req,UDPanswer,p_ip)
-        except socket.timeout:
-            data = {
-                "error": "Timeout",
-                "server": p_ip
-            }
-            provider.fault(p_ip)
-        except ConnectionRefusedError:
-            data = {
-                "error": "Connection Refused",
-                "server": p_ip
-            }
-            provider.fault(p_ip)
-        #except:
-        #    print("Unexpected error:", sys.exc_info()[0])
-        #    data = {
-        #        "error": "Unexpected Error",
-        #        "server": p_ip
-        #    }            
-        results.append(data)
+class DNSTestServerInstance:
+    def __init__(self,req:bytearray, provider: DNSProviderObject):
+        self.provider: DNSProviderObject = provider
+        self.req = req
+        self.ip = provider.getIP()
+        self.rc = 0
+        self.error = ""
+        self.res: DNSPacket = None
+        self.final_ip = "" # only used for analyzer
+
+    def send(self, server):
+        if self.ip == '':
+            self.rc = 404
+            self.error = "No IP"
+        else:
+            try:        
+                response = server.sendTCP(self.ip, self.req)
+                if response:
+                    UDPanswer = response[2:]
+                    self.res = DNSPacket(UDPanswer)
+
+            except socket.timeout:
+                self.rc = 1
+                self.error = "Timeout"
+                self.provider.fault(self.ip)
+            except ConnectionRefusedError:
+                self.rc = 2
+                self.error = "Connection Refused"
+                self.provider.fault(self.ip)
+
+
+class DNSTestServerGroup:
+    def __init__(self, server, providers: DNSProviders, req:bytearray):
+        self.server = server
+        self.providers = providers
+        self.instances: DNSTestServerInstance = []
+        self.req = req
+        self.reqParsed = DNSPacket(req)
+        # prepare instances
+        for providerObj in providers.providers:
+            self.instances.append(DNSTestServerInstance(self.req,providerObj))
+
+    def checkAll(self):
+        for instance in self.instances:
+            instance.send(self.server)
     
-        result_body = {
-            "results": results,
-            "trace_id": trace_id,
-            "request_time": time.time(),
-            "request": request,
+    def getDict(self):
+        providers = []
+        for instance in self.instances:
+            if instance.rc == 0:
+                dictObj = {
+                    "provider_ip": instance.ip,
+                    "provider_name": instance.provider.providerName,
+                    "results": instance.res.getDict(),
+                    
+                }
+                providers.append(dictObj)
+
+        dictObj = {
+            "request": self.reqParsed.getDict(),
+            "providers": providers
         }
+        return dictObj
+        # print (json.dumps(dictObj, indent=4, sort_keys=True))
 
-        saveTraceFile(result_body,result_body["trace_id"])
-    # server.providers.print()
-    # print (json.dumps(results, indent=4, sort_keys=True))
-    analyzeResults(request,results,server)
-
-    
-def saveTraceFile(data:dict ,trace_id:str ,folder:str = "debug"):
-    if False:
-        return
-    else:
+    def saveTraceFile(self, trace_id:str ,folder:str = "debug"):
         # dump response to file
         filename = "{}/trace_{}.json".format(folder,trace_id)
         with open(filename, 'w') as outfile:
-            json.dump(data, fp=outfile, indent=4, sort_keys=True )
+            json.dump(self.getDict(), fp=outfile, indent=4, sort_keys=True )
 
-def analyzeResults(req:dict, results:dict, server:DNSProviders):
-    # print (json.dumps(data, indent=4, sort_keys=True))
-    r_type = req["Q_0"]["QTYPE"]
-    # print(r_type)
-
-    # process data
-    responses = {}
-    ips = {}
-    providers = {}
-    trusts = {}
-    for result in results:
-        if "error" in result:
-            continue
-        elif result["f_rcode"] > 0:
-            continue
-        else:
-            for response in result.keys():
-                if response[0:3] == 'RR_' and result[response]["QTYPE"] == r_type:
-                    ip = ""
-                    if r_type == 1:
-                        ip = result[response]["RDATA_IPv4"]  
-                    elif r_type == 28:
-                        responses[result["server"]] = result[response]["RDATA_IPv6"]
-                    else:
+    def analyzeResults(self,trace_id:str):
+        requestType = self.reqParsed.queries[0].type 
+        ipTrustValues = {}
+        correctIP = ""
+        # iterate over all suitable results
+        for instance in self.instances:
+            if instance.rc != 0:
+                continue
+            elif instance.res.rcode > 0:
+                continue
+            else:
+                # continue if no error
+                for answers in instance.res.answers:
+                    if answers.type != requestType:
                         continue
-
-                    responses[result["server"]] = ip
-                    provider_obj = server.providers.getProvider(result["server"])
-                    provider = provider_obj.providerName
-                    trust = provider_obj.trustValue
-                    # add ip to ips
-                    if ip in ips.keys():
-                        ips[ip] += 1
                     else:
-                        ips[ip] = 1
+                        if answers.type == 1:
+                            instance.final_ip = answers.data["IPv4"]  
+                        elif answers.type == 28:
+                            instance.final_ip = answers.data["IPv6"]
+                        else:
+                            continue
+                        
 
-                    # create providers array
-                    provider_obj={
-                            "ip": result["server"],
-                            "provider": provider,
-                            "provider_obj": provider_obj,
-                    }
-                    if ip in providers.keys():
-                        providers[ip].append(provider_obj)
-                    else:
-                        providers[ip] = [provider_obj]
-                    
-                    # calculate trust sum
-                    if ip in trusts.keys():
-                        trusts[ip] += trust
-                    else:
-                        trusts[ip] = trust
+                        if instance.final_ip in ipTrustValues.keys():
+                            ipTrustValues[instance.final_ip] += instance.provider.trustValue
+                        else:
+                            ipTrustValues[instance.final_ip] = instance.provider.trustValue
+                        
+                        break
+        # only if there are any results
+        if len(ipTrustValues) == 0:
+            return
+        else:
+            # select dominating ip
+            highest_val = 0
+            for trust_ip_obj in ipTrustValues.keys():
+                if ipTrustValues[trust_ip_obj] > highest_val:
+                    correctIP = trust_ip_obj
+                    highest_val = ipTrustValues[trust_ip_obj]
 
-                else:
+            # process results
+            for instance in self.instances:
+                if instance.rc != 0:
                     continue
+                elif instance.res.rcode > 0:
+                    continue
+                elif instance.final_ip == correctIP:
+                    # likely valid
+                    instance.provider.validReq()
+                else:
+                    # likely manipulated / censsored
+                    instance.provider.invalidReq()
 
-    # determine deveating dns servers
-    highest_ip = ""
-    highest_val = 0
-    for trust_ip_obj in trusts.keys():
-        if trusts[trust_ip_obj] > highest_val:
-            highest_ip = trust_ip_obj
-            highest_val = trusts[trust_ip_obj]
+            print(ipTrustValues, correctIP)
 
-    # process deviating providers
-    for provider in providers.keys():
-        if provider != highest_ip:
-            # change trust and update values
-            for provider_item in providers[provider]:
-                provider_item["provider_obj"].invalidReq()
-                provider_item["trustValue"] =  provider_item["provider_obj"].trustValue
-                provider_item["reqTrue"] = provider_item["provider_obj"].reqTrue
-                provider_item["reqFalse"] = provider_item["provider_obj"].reqFalse
-                del provider_item["provider_obj"]
+        # generate report
+        filename = "{}/report_{}.txt".format("findings",trace_id)
+        f_report = open(filename, 'w')
+        f_report.write("DNS Deviation Report - ID : {}\n".format(trace_id))
+        f_report.write("Corresponding tracefile : {}\n".format("{}/trace_{}.json".format("findings",trace_id)))
+        f_report.write("===============================================================\n\n")
+        f_report.write("Request Date    : {}\n".format(datetime.now()))
+        f_report.write("Request URL     : {}\n\n".format(self.reqParsed.queries[0].name))
+        f_report.write("")    
 
-        else:
-            for provider_item in providers[provider]:
-                provider_item["provider_obj"].validReq()
-                provider_item["trustValue"] =  provider_item["provider_obj"].trustValue
-                provider_item["reqTrue"] = provider_item["provider_obj"].reqTrue
-                provider_item["reqFalse"] = provider_item["provider_obj"].reqFalse
-                del provider_item["provider_obj"]
+        # print result ip table
+        f_report.write("{:<26}{}\n".format("IP:","TrustScore:"))
+        for ip in ipTrustValues.keys():
+            f_report.write("{:<26}{}\n".format(ip,ipTrustValues[ip]))  
+        f_report.write("\nCorrect IP      : {}\n\n".format(correctIP)) 
 
-    if len(responses.keys()) > 0:
-        if len(ips.keys()) > 1:
-            finding_obj = {
-                "correct_ip": highest_ip,
-                "trusts": trusts,
-                "trace" : results,
-                "responses": responses,
-                "provider": providers,
-                "ips": ips,
-            }
-            trace_id = uuid.uuid4().hex
-            saveTraceFile(finding_obj,trace_id,"findings")
-            genReport(req,finding_obj,server,trace_id)
-
-
-def genReport(req:dict, finding_obj:dict, server:DNSProviders, trace_id:str):
-    filename = "{}/report_{}.txt".format("findings",trace_id)
-    f_report = open(filename, 'w')
-    f_report.write("DNS Deviation Report - ID : {}\n".format(trace_id))
-    f_report.write("Corresponding tracefile : {}\n".format("{}/trace_{}.json".format("findings",trace_id)))
-    f_report.write("===============================================================\n\n")
-    f_report.write("Request Date    : {}\n".format(datetime.now()))
-    f_report.write("Request URL     : {}\n\n".format(req["Q_0"]["QNAME"]))
-    f_report.write("")    
-    # print result ip table
-    f_report.write("{:<26}{}\n".format("IP:","TrustScore:"))
-    for ip in finding_obj["trusts"].keys():
-        f_report.write("{:<26}{}\n".format(ip,finding_obj["trusts"][ip]))  
-    f_report.write("\nCorrect IP      : {}\n\n".format(finding_obj["correct_ip"])) 
-
-    # print seviationg providers
-
-    f_report.write("Deviating Providers:\n{:<26}{:<18}{:<7}{:<6}{:<6}\n".format("Provider:","IP:","Trust:","True:","False:"))
-    for ip in finding_obj["provider"].keys():
-        if ip == finding_obj["correct_ip"]:
-            continue
-        else:
-            for provider_obj in finding_obj["provider"][ip]:
+        # print deviationg providers
+        f_report.write("Deviating Providers:\n{:<26}{:<18}{:<7}{:<6}{:<6}\n".format("Provider:","IP:","Trust:","True:","False:"))
+        for instance in self.instances:
+            if instance.rc != 0:
+                continue
+            elif instance.res.rcode > 0:
+                continue
+            elif instance.final_ip != correctIP:
                 f_report.write("{:<26}{:<18}{:<7}{:<6}{:<6}\n".format(
-                    provider_obj["provider"],
-                    provider_obj["ip"],
-                    provider_obj["trustValue"],
-                    provider_obj["reqTrue"],
-                    provider_obj["reqFalse"],
-                ))  
-    f_report.write("Valid Providers:\n{:<26}{:<18}{:<7}{:<6}{:<6}\n".format("Provider:","IP:","Trust:","True:","False:"))
-    for ip in finding_obj["provider"].keys():
-        if ip != finding_obj["correct_ip"]:
-            continue
-        else:
-            for provider_obj in finding_obj["provider"][ip]:
-                f_report.write("{:<26}{:<18}{:<7}{:<6}{:<6}\n".format(
-                    provider_obj["provider"],
-                    provider_obj["ip"],
-                    provider_obj["trustValue"],
-                    provider_obj["reqTrue"],
-                    provider_obj["reqFalse"],
+                    instance.provider.providerName,
+                    instance.ip,
+                    instance.provider.trustValue,
+                    instance.provider.reqTrue,
+                    instance.provider.reqFalse,
                 ))  
 
-    f_report.close()
+        f_report.write("Valid Providers:\n{:<26}{:<18}{:<7}{:<6}{:<6}\n".format("Provider:","IP:","Trust:","True:","False:"))
+        for instance in self.instances:
+            if instance.rc != 0:
+                continue
+            elif instance.res.rcode > 0:
+                continue
+            elif instance.final_ip == correctIP:
+                f_report.write("{:<26}{:<18}{:<7}{:<6}{:<6}\n".format(
+                    instance.provider.providerName,
+                    instance.ip,
+                    instance.provider.trustValue,
+                    instance.provider.reqTrue,
+                    instance.provider.reqFalse,
+                ))  
+
+        f_report.close()
+
