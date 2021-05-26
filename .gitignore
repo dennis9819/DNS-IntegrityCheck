@@ -36,3 +36,6 @@ nosetests.xml
 
 debug/*
 findings/*
+
+conf.yml
+test.py
