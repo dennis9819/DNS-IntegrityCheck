@@ -157,6 +157,7 @@ class DNSTestServerGroup:
 
             print(ipTrustValues, correctIP)
 
+        self.providers.writeStats()
         # generate report
         filename = "{}/report_{}.txt".format("findings",trace_id)
         f_report = open(filename, 'w')

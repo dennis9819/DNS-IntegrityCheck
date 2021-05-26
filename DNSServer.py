@@ -5,6 +5,8 @@
 # Date created: 30.03.2021
 # Python Version: 3.6
 
+
+from RedisInterface import RedisConnection
 import DNSProviders 
 import DNSProxyServer
 import sys, getopt
@@ -15,6 +17,8 @@ def printUsage():
 def main(argv):
     providerconfig = ''
     port = 5354
+
+    redisServer = RedisConnection("127.0.0.1",6379)
 
     # load args
     try:
@@ -36,10 +40,12 @@ def main(argv):
         sys.exit(2)
 
     # load config
-    providers = DNSProviders.DNSProviders()
+    providers = DNSProviders.DNSProviders(redisServer)
     providers.loadFromFile(providerconfig)
+    providers.readStats()
+    providers.writeStats()
     providers.print()
-
+    
     proxyServer = DNSProxyServer.DNSProxyServer(port,providers)
     # start server
 

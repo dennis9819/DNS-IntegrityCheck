@@ -154,9 +154,10 @@ class DNSProviderObject:
         print("")
 
 class DNSProviders:
-    def __init__(self):
+    def __init__(self, redisServer):
         self.providers = []
         self.master = None
+        self.redisServer = redisServer
 
     def getProvider(self,ip):
         for provider in self.providers:
@@ -164,7 +165,64 @@ class DNSProviders:
                 return provider
             else:
                 continue
+
+    def getProviderByName(self,name):
+        for provider in self.providers:
+            if name.upper() == provider.providerName.upper():
+                return provider
+            else:
+                continue
     
+    # save current stats to redis
+    def writeStats(self):
+        for provider in self.providers:
+            prefix = provider.providerName
+            self.redisServer.getConnection().set("PRVDR_STATS_{}_TRST".format(prefix.upper()),provider.trustValue)
+            self.redisServer.getConnection().set("PRVDR_STATS_{}_RQTR".format(prefix.upper()),provider.reqTrue)
+            self.redisServer.getConnection().set("PRVDR_STATS_{}_RQFL".format(prefix.upper()),provider.reqFalse)
+
+            for i in range(len(provider.IPs)):
+                self.redisServer.getConnection().set(\
+                    "PRVDR_STATS_{}_STAT_{}".format(prefix.upper(),\
+                    provider.IPs[i]),provider.state[i])
+                    
+    def readStats(self):
+        keys = self.redisServer.getConnection().keys("*")
+        for key in keys:
+            if (key[0:12] != b'PRVDR_STATS_'):
+                continue
+            keyString = key[12:].decode("utf-8")
+            seperator = self.__findSeperator__(keyString)
+            domainName = keyString[0:seperator]
+            prop = keyString[(seperator + 1):]
+
+            if prop[0:4] == 'TRST':
+                val = float(self.redisServer.getConnection().get(key.decode("utf-8")).decode("utf-8"))
+                self.getProviderByName(domainName).trustValue = val
+                print(self.redisServer.getConnection().get(key.decode("utf-8")))
+            elif prop[0:4] == 'RQTR':
+                val = int(self.redisServer.getConnection().get(key.decode("utf-8")).decode("utf-8"))
+                self.getProviderByName(domainName).reqTrue = val
+            elif prop[0:4] == 'RQFL':
+                val = int(self.redisServer.getConnection().get(key.decode("utf-8")).decode("utf-8"))
+                self.getProviderByName(domainName).reqFalse = val
+            elif prop[0:4] == 'STAT':
+                seperator = self.__findSeperator__(prop)
+                ip = prop[(seperator + 1):]
+                providerObj = self.getProviderByName(domainName)
+                indexOfIp = providerObj.IPs.index(ip)
+                val = int(self.redisServer.getConnection().get(key.decode("utf-8")).decode("utf-8"))
+                providerObj.state[indexOfIp] = val
+            
+    def __findSeperator__(self,data: bytearray):
+        mlen = len(data)
+        ix = 0
+        while ix < mlen:
+            if data[ix] == '_':
+                return ix
+            else:
+                ix += 1
+        return -1
 
     # load provider config
     def loadFromFile(self,file):
