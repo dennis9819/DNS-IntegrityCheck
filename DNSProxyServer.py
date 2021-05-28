@@ -10,15 +10,10 @@
 from backends.BeDoH import BackEnd_DoH
 from backends.BeUDP import BackEnd_UDP
 from backends.BeTCP import BackEnd_TCP
-import time
-from os import wait
 from frontends.FeUDP import FrontEnd_UDP
 from DNSTestThread import testServer
-from DNSDecodeUDP import processReq
+import time
 import socket
-import sys
-import _thread
-import traceback
 import binascii
 import Logging
 

@@ -9,13 +9,10 @@
 from DNSPacket import DNSPacket
 from typing import ByteString
 from DNSProviders import DNSProviderObject, DNSProviders
-import time
 import socket
-from DNSDecodeUDP import decodeResponse, processReq
 import _thread
 import json
 import uuid
-import sys
 from datetime import datetime
 
 
