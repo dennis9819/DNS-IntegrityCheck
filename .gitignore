@@ -39,3 +39,5 @@ findings/*
 
 conf.yml
 test.py
+
+__pycache__

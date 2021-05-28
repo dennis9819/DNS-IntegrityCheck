@@ -11,6 +11,8 @@ import DNSProviders
 import DNSProxyServer
 import sys, getopt
 
+import DNSCliServer
+
 def printUsage():
     print ('DNSServer.py -c <providerconfig> (-p <dns port>)')
 
@@ -44,7 +46,9 @@ def main(argv):
     providers.loadFromFile(providerconfig)
     providers.readStats()
     providers.writeStats()
-    providers.print()
+    # providers.print()
+
+    DNSCliServer.runCliServer(providers)
     
     proxyServer = DNSProxyServer.DNSProxyServer(port,providers)
     # start server

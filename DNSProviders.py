@@ -153,6 +153,37 @@ class DNSProviderObject:
         
         print("")
 
+     # create print object content
+    def list(self):
+        string = bcolors.BOLD + "==> Provider Info for " + bcolors.OKBLUE +self.providerName + bcolors.ENDC +"\n"
+        if self.master:
+            string+= "    id: " + bcolors.OKBLUE + self.id + bcolors.ENDC + "  |  " + bcolors.WARNING + "MASTER-Provider" + bcolors.ENDC +"\n"
+        else:
+            string+= "    id: " + bcolors.OKBLUE + self.id + bcolors.ENDC +"\n"
+        count = 0
+        string+= bcolors.BOLD + "server            state          ping      role      desc"+ bcolors.ENDC +"\n"
+        for server in self.IPs:
+            rowFormat = "{:<18}{:<10}{:>16} {:<10}{:<30}"
+            state = bcolors.FAIL + "OFFLINE " + bcolors.ENDC
+            master = ""
+            if self.isMaster[count]:
+                master = "*master"
+            ping = "∞"
+            if self.ping[count] > -1:
+                ping = "{} ms".format(self.ping[count])
+            if self.state[count] == 0:
+                state = bcolors.OKGREEN + "ONLINE  " + bcolors.ENDC
+            if self.state[count] >= 2:
+                state = bcolors.WARNING + "FAULTED ({})".format(self.state[count]-1) + bcolors.ENDC
+            row = rowFormat.format(server, state, ping, master, self.comments[count])
+            string+=row +"\n"
+            count += 1
+        if count == 0:
+            string+= bcolors.WARNING + "  -- no server for this provider --" + bcolors.ENDC +"\n"
+        
+        return string
+
+
 class DNSProviders:
     def __init__(self, redisServer):
         self.providers = []
@@ -199,7 +230,7 @@ class DNSProviders:
             if prop[0:4] == 'TRST':
                 val = float(self.redisServer.getConnection().get(key.decode("utf-8")).decode("utf-8"))
                 self.getProviderByName(domainName).trustValue = val
-                print(self.redisServer.getConnection().get(key.decode("utf-8")))
+                # print(self.redisServer.getConnection().get(key.decode("utf-8")))
             elif prop[0:4] == 'RQTR':
                 val = int(self.redisServer.getConnection().get(key.decode("utf-8")).decode("utf-8"))
                 self.getProviderByName(domainName).reqTrue = val
