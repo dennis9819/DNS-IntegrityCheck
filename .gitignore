@@ -41,3 +41,4 @@ conf.yml
 test.py
 
 __pycache__
+*.log

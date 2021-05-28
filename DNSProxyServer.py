@@ -14,13 +14,15 @@ import sys
 import _thread
 import traceback
 import binascii
+import Logging
 
 class DNSProxyServer:
-    def __init__(self, port, providers):
+    def __init__(self, port, providers, config):
         self.port = int(port)
         self.providers = providers
         self.host = "127.0.0.1"
-        print("[INFO ]   Opening on {}:{}".format(self.host,self.port)) 
+        self.config = config
+        Logging.logInstance.logInfo("Opening on {}:{}".format(self.host,self.port)) 
         try:
             # setup a UDP server to get the UDP DNS request
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -29,11 +31,11 @@ class DNSProxyServer:
                 data, addr = sock.recvfrom(1024)
                 _thread.start_new_thread(self.handler, (data, addr, sock, providers.master.getIP()))
         except OSError as err:
-            print("[ERROR]   {}".format(err)) 
+            Logging.logInstance.logError("{}".format(err)) 
         except TypeError as err:
-            print("[ERROR]   {}".format(err)) 
+            Logging.logInstance.logError("{}".format(err)) 
         except:
-            print("Unexpected error:", sys.exc_info()[0])
+            Logging.logInstance.logError("Unexpected error:", sys.exc_info()[0])
             traceback.print_exc()
             sock.close()
 
@@ -45,7 +47,7 @@ class DNSProxyServer:
             socket.sendto(UDPanswer, addr)
             testServer(data,self)
         else:
-            print ("Request is not a DNS query. Format Error!")
+            Logging.logInstance.logError ("Request is not a DNS query. Format Error!")
 
     # convert the UDP DNS query to the TCP DNS query
     def getTcpQuery(self, query):

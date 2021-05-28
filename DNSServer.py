@@ -10,8 +10,11 @@ from RedisInterface import RedisConnection
 import DNSProviders 
 import DNSProxyServer
 import sys, getopt
-
+import Logging
 import DNSCliServer
+import yaml
+
+Logging.logInstance = Logging.Logging()
 
 def printUsage():
     print ('DNSServer.py -c <providerconfig> (-p <dns port>)')
@@ -19,8 +22,33 @@ def printUsage():
 def main(argv):
     providerconfig = ''
     port = 5354
+    configFile = "conf.yml"
+    config = {}
+    try:
+        with open(configFile, 'r') as stream:
+            try:
+                config = yaml.safe_load(stream)
+            except yaml.YAMLError as exc:
+                Logging.logInstance.logError("Failed to parse config")
+                print(exc)
+                exit(101)
+    except FileNotFoundError as exc:
+        Logging.logInstance.logError("Failed to open config")
+        print(exc)
+        exit(100)
 
-    redisServer = RedisConnection("127.0.0.1",6379)
+    try:
+        Logging.logInstance.logfile = config["logpath"]
+    except KeyError as exc:
+        Logging.logInstance.logError("Invalid logfile config at key " + exc.args[0])
+        exit(102)
+
+    # open redis
+    try:
+        redisServer = RedisConnection(config["redis"]["ip"],config["redis"]["port"])
+    except KeyError as exc:
+        Logging.logInstance.logError("Invalid redis config at key " + exc.args[0])
+        exit(102)
 
     # load args
     try:
@@ -50,7 +78,7 @@ def main(argv):
 
     DNSCliServer.runCliServer(providers)
     
-    proxyServer = DNSProxyServer.DNSProxyServer(port,providers)
+    proxyServer = DNSProxyServer.DNSProxyServer(port,providers, config)
     # start server
 
 

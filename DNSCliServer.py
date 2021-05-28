@@ -7,6 +7,7 @@
 
 from multiprocessing.connection import Listener
 import _thread
+import Logging
 
 SERVER_VERSION='0.0.1'
 SERVER_VERSION_NUM='1'
@@ -15,7 +16,7 @@ def runCliServer(providers):
     _thread.start_new_thread( runCliServerThread, (providers, ) )
 
 def runCliServerThread(providers):
-    print("Started CLI-Server Thread")
+    Logging.logInstance.logInfo("Started CLI-Server Thread")
     address = ('localhost', 6000)     # family is deduced to be 'AF_INET'
     while True:
         listener = Listener(address, authkey=b'secret password')
