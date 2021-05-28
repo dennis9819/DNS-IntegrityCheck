@@ -8,6 +8,7 @@
 import socket
 import subprocess
 from subprocess import DEVNULL, STDOUT, check_call
+import Logging
 
 class bcolors:
     HEADER = '\033[95m'
@@ -299,7 +300,7 @@ class DNSProviders:
             try:
                 socket.inet_aton(ip)
             except:
-                print("[WARNING] Line{}: loading config - invalid IP address : {} - ignoring".format(count,ip)) 
+                Logging.logInstance.logWarning("Line{}: loading config - invalid IP address : {} - ignoring".format(count,ip)) 
                 continue
 
             self.providers[-1].addIP(ip, comment)

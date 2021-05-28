@@ -7,6 +7,12 @@
 # Python Version: 3.6
 
 
+from backends.BeDoH import BackEnd_DoH
+from backends.BeUDP import BackEnd_UDP
+from backends.BeTCP import BackEnd_TCP
+import time
+from os import wait
+from frontends.FeUDP import FrontEnd_UDP
 from DNSTestThread import testServer
 from DNSDecodeUDP import processReq
 import socket
@@ -16,38 +22,102 @@ import traceback
 import binascii
 import Logging
 
+backendClasses = [
+    BackEnd_TCP,
+    BackEnd_UDP,
+    BackEnd_DoH
+]
+
+frontendClasses = [
+    FrontEnd_UDP
+]
+
+
 class DNSProxyServer:
     def __init__(self, port, providers, config):
         self.port = int(port)
         self.providers = providers
         self.host = "127.0.0.1"
         self.config = config
-        Logging.logInstance.logInfo("Opening on {}:{}".format(self.host,self.port)) 
+        self.frontEnds = []
+        self.backEnds = []
+        self.masterBackend = 0
+        # load backends
         try:
-            # setup a UDP server to get the UDP DNS request
-            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            sock.bind((self.host, self.port))
-            while True:
-                data, addr = sock.recvfrom(1024)
-                _thread.start_new_thread(self.handler, (data, addr, sock, providers.master.getIP()))
-        except OSError as err:
-            Logging.logInstance.logError("{}".format(err)) 
-        except TypeError as err:
-            Logging.logInstance.logError("{}".format(err)) 
-        except:
-            Logging.logInstance.logError("Unexpected error:", sys.exc_info()[0])
-            traceback.print_exc()
-            sock.close()
+            backends = config["backend"].keys()
+        except KeyError as exc:
+            Logging.logInstance.logError("Invalid backend config at key " + exc.args[0])
+            exit(102)
+                
+        for backend in backends:
+            Logging.logInstance.logInfo("Initializing " + backend)
+    
+            backendObj = None
+            # find matching module
+            for mods in backendClasses:
+                if config["backend"][backend]["type"] == mods.ident:
+                    # do it 
+                    backendObj = mods(config["backend"][backend],backend)
+                    break
+                else:
+                    continue
 
-    # a new thread to handle the UPD DNS request to TCP DNS request
-    def handler(self, data, addr, socket, DNSserverIP):
-        TCPanswer = self.sendTCP(DNSserverIP, data)
-        if TCPanswer:
-            UDPanswer = TCPanswer[2:]
-            socket.sendto(UDPanswer, addr)
+            if backendObj == None:
+                Logging.logInstance.logError("Invalid backend type " + config["backend"][backend]["type"])
+                exit(104)
+
+            self.backEnds.append(backendObj)
+
+            # set master
+            if "master" in config["backend"][backend].keys():
+                if config["backend"][backend]["master"] == True:
+                    self.masterBackend = len(self.backEnds) - 1
+
+
+        # load frontends
+        try:
+            frontends = config["frontend"].keys()
+        except KeyError as exc:
+            Logging.logInstance.logError("Invalid frontend config at key " + exc.args[0])
+            exit(102)
+
+        for frontend in frontends:
+            Logging.logInstance.logInfo("Initializing " + frontend)
+
+            frontendObj = None
+            # find matching module
+            for mods in frontendClasses:
+                if config["frontend"][frontend]["type"] == mods.ident:
+                    # do it 
+                    frontendObj = mods(config["frontend"][frontend],frontend)
+                    break
+                else:
+                    continue
+
+            if frontendObj == None:
+                Logging.logInstance.logError("Invalid frontend type " + config["frontend"][frontend]["type"])
+                exit(104)
+            
+            
+            self.frontEnds.append(frontendObj)
+            frontendObj.registerCallback(self.frontendCallback)
+            frontendObj.startListener()
+
+        while True:
+            time.sleep(1)
+
+    # callback for frontend
+    def frontendCallback(self, data):
+
+        answer = self.backEnds[self.masterBackend].send(data, self.providers.master.getIP())
+        if answer:
             testServer(data,self)
+            return answer
         else:
             Logging.logInstance.logError ("Request is not a DNS query. Format Error!")
+            return data
+
+##### still required for stupid analyzer
 
     # convert the UDP DNS query to the TCP DNS query
     def getTcpQuery(self, query):
