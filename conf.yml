@@ -1,0 +1,44 @@
+# Author: Dennis Gunia
+# Date created: 28.05.2021
+# Python Version: 3.6
+#
+# dnyproxy configuration file
+
+# File to write logfiles
+logpath: "./dnsproxy.log"
+
+# Redis database connection parameters
+redis:
+  ip: 127.0.0.1
+  port: 6379
+
+# Frontend configuration
+frontend:
+  fe1:
+    type: "udp"
+    host: "0.0.0.0"
+    port: 5355
+  fe2:
+    type: "udp"
+    host: "0.0.0.0"
+    port: 5356
+
+# Backend configuration
+backend:
+  be1:
+    type: "tcp"   # DNS over TCP
+
+  be2:
+    type: "udp"   # DNS over UDP
+    delay: 3
+    timeout: 3000
+
+  be3:
+    type: "doh"   # DNS over HTTPS
+    master: true
+    url: "dns-query"
+
+protoPriority:
+  - "doh"
+  - "udp"
+  - "tcp"
