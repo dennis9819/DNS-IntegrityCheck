@@ -15,12 +15,9 @@ For Testing:
 
     python3 DNSServer.py -c <path to config>
 
-The server runs on Port 5354. This can be changed by specifiying the port using:
 
-    python3 DNSServer.py -c <path to config> -p <port>
-
-## Config-File
-The Config-File contains all DNS-Servers that should be checked.
+## Provider-File
+The Provider-File contains all DNS-Servers that should be checked.
 
 The Syntax is very easy. The File is organized into blocks.
 Each block represents one provider. Each provider can have multiple DNS-Servers.
@@ -40,6 +37,99 @@ It is also possible to define an aliad/comment.
     217.5.100.185: Deutsche Telekom AG
     217.5.100.186: Deutsche Telekom AG
 
+## Config-File
+The configuration file contains all nearly all informations that are requierd to run the proxy server.
+
+This includes:
+* logfile path
+* redis configuration (ip & port)
+* frontend configuration
+* backend configuaration
+
+### logpath
+The logpath variable contains the logfile-path.
+
+    logpath: "./dnsproxy.log"
+
+### redis
+Redis contains the `ip` and `port` of the redis server.
+
+    redis:
+      ip: 127.0.0.1
+      port: 6379 
+
+### frontend
+All modules which take requests are configured in the frontend section.
+
+    frontend:
+      fe1:
+        type: "udp"
+        host: "0.0.0.0"
+        port: 5355
+      fe2:
+        type: "udp"
+        host: "0.0.0.0"
+        port: 5356
+
+`fe1` and `fe2` are customizable names. You can configure as many frontends as you want.
+Every frontend needs at least the type parameter. This specifies the frontend type.
+Currently there is only:
+* `udp`
+
+All other parameters are frontend-specific.
+
+#### **frontend-udp**
+* `host` -> listening ip address
+* `port` -> listening port
+
+### backend
+All modules which forward requests are configured in the backend section.
+
+    backend:
+      be1:
+        type: "tcp"   # DNS over TCP
+
+      be2:
+        type: "udp"   # DNS over UDP
+        delay: 3
+        timeout: 3000
+
+      be3:
+        type: "doh"   # DNS over HTTPS
+        master: true
+        url: "dns-query"
+
+`be1`, `be2`,... are customizable names as well. You can configure as many backend as you want.
+Every backend needs at least the type parameter. This specifies the frontend type.
+
+Currently there are:
+* `udp` -> DNS over UDP/53
+* `tcp` -> DNS over TCP/53
+* `doh` -> DNS over HTTPS/443 (RFC8484) (non json)
+
+The primary backend is specified by `master: true`
+
+All other parameters are backend-specific.
+
+The priority is specified by the `protoPriority` list.
+
+#### **backend-udp**
+* `delay` -> delay between retries
+* `timeout` -> timeout for answer
+
+#### **backend-tcp**
+no additional parameters
+
+#### **backend-doh**
+* `url` -> url-path
+
+Example: `https://1.1.1.1/\<urlpath\>?dns=....`
+
+## Redis
+The redis-database can be used to store trust values and server states. It it planned to also implement a DNS cache.
+
+## CLI
+TODO: Write Doc
 
 ## Sources
 * http://www.tcpipguide.com/free/t_DNSMessageHeaderandQuestionSectionFormat.htm
@@ -48,3 +138,7 @@ It is also possible to define an aliad/comment.
 * https://www.iana.org/assignments/dns-parameters/dns-parameters.xhtml
 * https://datatracker.ietf.org/doc/html/rfc1035
 * http://www.tcpipguide.com/free/t_DNSNameNotationandMessageCompressionTechnique.htm
+### DoH
+* https://datatracker.ietf.org/doc/html/rfc8484#section-4.1
+* https://developers.google.com/speed/public-dns/docs/doh
+* https://developers.cloudflare.com/1.1.1.1/dns-over-https/request-structure
