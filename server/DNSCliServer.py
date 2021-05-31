@@ -7,16 +7,17 @@
 
 from multiprocessing.connection import Listener
 import _thread
-import Logging
+from os import name
+
 
 SERVER_VERSION='0.0.1'
 SERVER_VERSION_NUM='1'
-def runCliServer(providers):
+def runCliServer(pserver):
     # generate new thread
-    _thread.start_new_thread( runCliServerThread, (providers, ) )
+    _thread.start_new_thread( runCliServerThread, (pserver, ) )
 
-def runCliServerThread(providers):
-    Logging.logInstance.logInfo("Started CLI-Server Thread")
+def runCliServerThread(pserver):
+    pserver.logInstance.logInfo("Started CLI-Server Thread")
     address = ('localhost', 6000)     # family is deduced to be 'AF_INET'
     while True:
         listener = Listener(address, authkey=b'secret password')
@@ -30,7 +31,7 @@ def runCliServerThread(providers):
                 elif msg == 'getver':
                     conn.send([SERVER_VERSION,SERVER_VERSION_NUM])
                 elif msg[0:4] == 'cmd:':
-                    cmdGlobal(conn,msg,providers)
+                    cmdGlobal(conn,msg,pserver)
                     conn.send([9999,''])
                 else:
                     conn.send([1,'Unknown operation'])
@@ -39,7 +40,7 @@ def runCliServerThread(providers):
             listener.close()
             pass
 
-def cmdGlobal(conn,cmd, providers):
+def cmdGlobal(conn,cmd, pserver):
     helpMsg = """Modules:
     help
     providers
@@ -50,9 +51,9 @@ def cmdGlobal(conn,cmd, providers):
     if segments[0] == 'ping':
         conn.send([0,"pong"])
     elif segments[0] == 'providers' or segments[0] == 'provider':
-        cmdModProviders(conn,segments[1:],providers)
+        cmdModProviders(conn,segments[1:],pserver.providers)
     elif segments[0] == 'status':
-        cmdModStatus(conn,segments[1:],providers)
+        cmdModStatus(conn,segments[1:],pserver.providers)
     elif segments[0] == 'help':
         conn.send([0,helpMsg]) 
     else:

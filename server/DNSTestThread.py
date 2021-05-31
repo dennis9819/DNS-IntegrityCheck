@@ -16,19 +16,19 @@ import uuid
 from datetime import datetime
 
 
-def testServer(req: bytearray,server):
+def testServer(req: bytearray,pserver,trace_id):
     # generate new thread
-    trace_id = uuid.uuid4().hex
-    _thread.start_new_thread( startTest, (req, server, trace_id,) )
+    _thread.start_new_thread( startTest, (req, pserver, trace_id,) )
 
-def startTest(req: bytearray, server, trace_id: str):
-    testClass = DNSTestServerGroup(server,server.providers,req)
+def startTest(req: bytearray, pserver, trace_id: str):
+    testClass = DNSTestServerGroup(pserver,req)
     testClass.checkAll()
     testClass.saveTraceFile(trace_id)
     testClass.analyzeResults(trace_id)
 
 class DNSTestServerInstance:
-    def __init__(self,req:bytearray, provider: DNSProviderObject):
+    def __init__(self,pserver, req:bytearray, provider: DNSProviderObject):
+        self.pserver = pserver
         self.provider: DNSProviderObject = provider
         self.req = req
         self.ip = provider.getIP()
@@ -37,13 +37,13 @@ class DNSTestServerInstance:
         self.res: DNSPacket = None
         self.final_ip = "" # only used for analyzer
 
-    def send(self, server):
+    def send(self):
         if self.ip == '':
             self.rc = 404
             self.error = "No IP"
         else:
             try:        
-                response = server.sendTCP(self.ip, self.req)
+                response = self.pserver.proxyServer.sendTCP(self.ip, self.req)
                 if response:
                     UDPanswer = response[2:]
                     self.res = DNSPacket(UDPanswer)
@@ -59,19 +59,20 @@ class DNSTestServerInstance:
 
 
 class DNSTestServerGroup:
-    def __init__(self, server, providers: DNSProviders, req:bytearray):
-        self.server = server
-        self.providers = providers
+    def __init__(self, pserver, req:bytearray):
+
+        self.pserver = pserver
+        self.providers = pserver.providers.providers
         self.instances: DNSTestServerInstance = []
         self.req = req
         self.reqParsed = DNSPacket(req)
         # prepare instances
-        for providerObj in providers.providers:
-            self.instances.append(DNSTestServerInstance(self.req,providerObj))
+        for providerObj in self.providers:
+            self.instances.append(DNSTestServerInstance(self.pserver, self.req, providerObj))
 
     def checkAll(self):
         for instance in self.instances:
-            instance.send(self.server)
+            instance.send()
     
     def getDict(self):
         providers = []
@@ -94,7 +95,7 @@ class DNSTestServerGroup:
 
     def saveTraceFile(self, trace_id:str ,folder:str = "debug"):
         # dump response to file
-        filename = "{}/trace_{}.json".format(folder,trace_id)
+        filename = "{}/trace_{}.json".format(self.pserver.config["varPath"] + "/trace/",trace_id)
         with open(filename, 'w') as outfile:
             json.dump(self.getDict(), fp=outfile, indent=4, sort_keys=True )
 
@@ -154,9 +155,9 @@ class DNSTestServerGroup:
 
             print(ipTrustValues, correctIP)
 
-        self.providers.writeStats()
+        self.pserver.providers.writeStats()
         # generate report
-        filename = "{}/report_{}.txt".format("findings",trace_id)
+        filename = "{}/report_{}.txt".format(self.pserver.config["varPath"] + "/finding/",trace_id)
         f_report = open(filename, 'w')
         f_report.write("DNS Deviation Report - ID : {}\n".format(trace_id))
         f_report.write("Corresponding tracefile : {}\n".format("{}/trace_{}.json".format("findings",trace_id)))

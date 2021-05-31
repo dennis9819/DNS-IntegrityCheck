@@ -5,8 +5,9 @@
 # dnyproxy configuration file
 
 # File to write logfiles
-logpath: "./dnsproxy.log"
 
+providerFile: "../providers/ger_default-providers.conf"
+varPath: "/opt/pserver/var"
 # Redis database connection parameters
 redis:
   ip: 127.0.0.1

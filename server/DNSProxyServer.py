@@ -11,74 +11,71 @@ from DNSTestThread import testServer
 import time
 import socket
 import binascii
-import Logging
-
-
-
 
 class DNSProxyServer:
-    def __init__(self, port, providers, interfaces):
-        self.port = int(port)
-        self.providers = providers
+    def __init__(self, pserver):
+        self.pserver = pserver
+        self.providers = pserver.providers
         self.host = "127.0.0.1"
         self.frontEnds = []
         self.backEnds = []
         self.masterBackend = 0
-        self.backendClasses, self.frontendClasses, self.config = interfaces
+
         # load backends
         try:
-            backends = self.config["backend"].keys()
+            backends = self.pserver.config["backend"].keys()
         except KeyError as exc:
-            Logging.logInstance.logError("Invalid backend config at key " + exc.args[0])
+            self.pserver.logInstance.logError("Invalid backend config at key " + exc.args[0])
             exit(102)
                 
         for backend in backends:
-            Logging.logInstance.logInfo("Initializing " + backend)
+            self.pserver.logInstance.logInfo("Initializing " + backend)
     
             backendObj = None
             # find matching module
-            for mods in self.backendClasses:
-                if self.config["backend"][backend]["type"] == mods.ident:
+            for mods in self.pserver.backendClasses:
+                if self.pserver.config["backend"][backend]["type"] == mods.ident:
                     # do it 
-                    backendObj = mods(self.config["backend"][backend],backend)
+                    backendObj = mods(self.pserver.config["backend"][backend],backend)
                     break
                 else:
                     continue
 
             if backendObj == None:
-                Logging.logInstance.logError("Invalid backend type " + self.config["backend"][backend]["type"])
+                self.pserver.logInstance.logError("Invalid backend type " + self.config["backend"][backend]["type"])
                 exit(104)
 
             self.backEnds.append(backendObj)
 
             # set master
-            if "master" in self.config["backend"][backend].keys():
-                if self.config["backend"][backend]["master"] == True:
+            if "master" in self.pserver.config["backend"][backend].keys():
+                if self.pserver.config["backend"][backend]["master"] == True:
                     self.masterBackend = len(self.backEnds) - 1
 
 
         # load frontends
         try:
-            frontends = self.config["frontend"].keys()
+            frontends = self.pserver.config["frontend"].keys()
         except KeyError as exc:
-            Logging.logInstance.logError("Invalid frontend config at key " + exc.args[0])
+            self.pserver.logInstance.logError("Invalid frontend config at key " + exc.args[0])
             exit(102)
 
         for frontend in frontends:
-            Logging.logInstance.logInfo("Initializing " + frontend)
+            self.pserver.logInstance.logInfo("Initializing " + frontend)
 
             frontendObj = None
             # find matching module
-            for mods in self.frontendClasses:
-                if self.config["frontend"][frontend]["type"] == mods.ident:
+            for mods in self.pserver.frontendClasses:
+                if self.pserver.config["frontend"][frontend]["type"] == mods.ident:
                     # do it 
-                    frontendObj = mods(self.config["frontend"][frontend],frontend)
+                    #.pserver.config["frontend"][frontend]
+                    frontendObj = mods(self.pserver,frontend)
                     break
                 else:
                     continue
 
             if frontendObj == None:
-                Logging.logInstance.logError("Invalid frontend type " + self.config["frontend"][frontend]["type"])
+                self.pserver.logInstance.logError("Invalid frontend type " + self.pserver.config["frontend"][frontend]["type"])
                 exit(104)
             
             
@@ -86,18 +83,15 @@ class DNSProxyServer:
             frontendObj.registerCallback(self.frontendCallback)
             frontendObj.startListener()
 
-        while True:
-            time.sleep(1)
 
     # callback for frontend
-    def frontendCallback(self, data):
-        print(data)
+    def frontendCallback(self, data, trace_id):
         answer = self.backEnds[self.masterBackend].send(data, self.providers.master.getIP())
         if answer:
-            testServer(data,self)
+            testServer(data,self.pserver, trace_id)
             return answer
         else:
-            Logging.logInstance.logError ("Request is not a DNS query. Format Error!")
+            self.pserver.logInstance.logError ("Request is not a DNS query. Format Error!")
             return data
 
 ##### still required for stupid analyzer

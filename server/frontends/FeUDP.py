@@ -24,30 +24,36 @@ class FrontEnd_UDP(DNSFrontEnd):
         try:
             self.sock.bind((self.config["host"], self.config["port"]))
         except KeyError as exc:
-            Logging.logInstance.logError("Invalid frontend config at key " + exc.args[0])
+            self.pserver.logInstance.logError("Invalid frontend config at key " + exc.args[0])
             exit(102)
 
         self.listenIdent = _thread.start_new_thread(self.__listen__, ())
         
+    def logAccess(self, ip):
+        return super().logAccess(ip)
 
     def __listen__(self):
-        Logging.logInstance.logInfo("Started listener thread for frontend " \
+        self.pserver.logInstance.logInfo("Started listener thread for frontend " \
             + self.name + " (" \
             + self.ident  +  ") @ " \
             + hex(_thread.get_ident())) 
+        
         try:
             while True:
                 data, addr = self.sock.recvfrom(1024)
-                _thread.start_new_thread(self.__connection__, (data, addr))
+                trace_id = self.logAccess(addr)
+                _thread.start_new_thread(self.__connection__, (data, addr, trace_id))
         except:
-            Logging.logInstance.logError("Error occured in listener thread for frontend " \
+            self.pserver.logInstance.logError("Error occured in listener thread for frontend " \
                 + self.name + " (" \
                 + self.ident  +  ") @ " \
                 + hex(_thread.get_ident())) 
 
             _thread.interrupt_main()
 
-    def __connection__(self,data,addr):
-        returnData = self.callbackFunc(data)
+    def __connection__(self,data,addr, trace_id):
+        returnData = self.callbackFunc(data, trace_id)
         # reply
         self.sock.sendto(returnData, addr)
+
+    
