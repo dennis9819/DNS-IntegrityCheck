@@ -7,39 +7,27 @@
 # Python Version: 3.6
 
 
-from backends.BeDoH import BackEnd_DoH
-from backends.BeUDP import BackEnd_UDP
-from backends.BeTCP import BackEnd_TCP
-from frontends.FeUDP import FrontEnd_UDP
 from DNSTestThread import testServer
 import time
 import socket
 import binascii
 import Logging
 
-backendClasses = [
-    BackEnd_TCP,
-    BackEnd_UDP,
-    BackEnd_DoH
-]
 
-frontendClasses = [
-    FrontEnd_UDP
-]
 
 
 class DNSProxyServer:
-    def __init__(self, port, providers, config):
+    def __init__(self, port, providers, interfaces):
         self.port = int(port)
         self.providers = providers
         self.host = "127.0.0.1"
-        self.config = config
         self.frontEnds = []
         self.backEnds = []
         self.masterBackend = 0
+        self.backendClasses, self.frontendClasses, self.config = interfaces
         # load backends
         try:
-            backends = config["backend"].keys()
+            backends = self.config["backend"].keys()
         except KeyError as exc:
             Logging.logInstance.logError("Invalid backend config at key " + exc.args[0])
             exit(102)
@@ -49,29 +37,29 @@ class DNSProxyServer:
     
             backendObj = None
             # find matching module
-            for mods in backendClasses:
-                if config["backend"][backend]["type"] == mods.ident:
+            for mods in self.backendClasses:
+                if self.config["backend"][backend]["type"] == mods.ident:
                     # do it 
-                    backendObj = mods(config["backend"][backend],backend)
+                    backendObj = mods(self.config["backend"][backend],backend)
                     break
                 else:
                     continue
 
             if backendObj == None:
-                Logging.logInstance.logError("Invalid backend type " + config["backend"][backend]["type"])
+                Logging.logInstance.logError("Invalid backend type " + self.config["backend"][backend]["type"])
                 exit(104)
 
             self.backEnds.append(backendObj)
 
             # set master
-            if "master" in config["backend"][backend].keys():
-                if config["backend"][backend]["master"] == True:
+            if "master" in self.config["backend"][backend].keys():
+                if self.config["backend"][backend]["master"] == True:
                     self.masterBackend = len(self.backEnds) - 1
 
 
         # load frontends
         try:
-            frontends = config["frontend"].keys()
+            frontends = self.config["frontend"].keys()
         except KeyError as exc:
             Logging.logInstance.logError("Invalid frontend config at key " + exc.args[0])
             exit(102)
@@ -81,16 +69,16 @@ class DNSProxyServer:
 
             frontendObj = None
             # find matching module
-            for mods in frontendClasses:
-                if config["frontend"][frontend]["type"] == mods.ident:
+            for mods in self.frontendClasses:
+                if self.config["frontend"][frontend]["type"] == mods.ident:
                     # do it 
-                    frontendObj = mods(config["frontend"][frontend],frontend)
+                    frontendObj = mods(self.config["frontend"][frontend],frontend)
                     break
                 else:
                     continue
 
             if frontendObj == None:
-                Logging.logInstance.logError("Invalid frontend type " + config["frontend"][frontend]["type"])
+                Logging.logInstance.logError("Invalid frontend type " + self.config["frontend"][frontend]["type"])
                 exit(104)
             
             
@@ -103,7 +91,7 @@ class DNSProxyServer:
 
     # callback for frontend
     def frontendCallback(self, data):
-
+        print(data)
         answer = self.backEnds[self.masterBackend].send(data, self.providers.master.getIP())
         if answer:
             testServer(data,self)

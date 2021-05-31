@@ -31,7 +31,7 @@ backend:
   be2:
     type: "udp"   # DNS over UDP
     delay: 3
-    timeout: 3000
+    timeout: 3
 
   be3:
     type: "doh"   # DNS over HTTPS

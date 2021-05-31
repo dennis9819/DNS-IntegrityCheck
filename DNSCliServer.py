@@ -37,7 +37,7 @@ def runCliServerThread(providers):
             listener.close()
         except:
             listener.close()
-
+            pass
 
 def cmdGlobal(conn,cmd, providers):
     helpMsg = """Modules:

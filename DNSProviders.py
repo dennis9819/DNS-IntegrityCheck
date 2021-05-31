@@ -35,7 +35,7 @@ CONST_regain_trust = 0.0001
 
 class DNSProviderObject:
     ipCount = 0 # amount of imported ips for this specific provider
-    def __init__(self, providerName):
+    def __init__(self, providerName, interfaces):
         self.providerName = providerName
         self.IPs = []
         self.comments = []
@@ -49,6 +49,9 @@ class DNSProviderObject:
         self.trustValue = CONST_initial_trust
         self.reqTrue = 0
         self.reqFalse = 0
+        self.supportedBackends = []
+        self.backendClasses, self.frontendClasses, self.config = interfaces
+
     # check if ip is reachable and set the corresponding state
     def checkIP(self, IP):
         index = self.IPs.index(IP)
@@ -66,6 +69,57 @@ class DNSProviderObject:
         timeSubStr = timeLine[23:-3].split('/')
         self.state[index] = 0
         self.ping[index] = float(timeSubStr[1])
+
+        
+    def checkInterfaces(self, IP):
+        online = 0
+        index = self.IPs.index(IP)
+
+        if index == -1:
+            raise RuntimeError('IP not imported')
+
+        if self.state[index] > 0:
+            return
+
+        # check protos
+        dummyMsg = b'\x15\xce\x01\x00\x00\x01\x00\x00\x00\x00\x00\x00\x0bdennisgunia\x02de\x00\x00\x01\x00\x01'
+        for backend in self.config["backend"].keys():
+
+            # Logging.logInstance.logInfo("Testing " + backend)
+    
+            backendObj = None
+            # find matching module
+            for mods in self.backendClasses:
+                if self.config["backend"][backend]["type"] == mods.ident:
+                    # do it 
+                    backendObj = mods(self.config["backend"][backend],backend)
+                    break
+                else:
+                    continue
+
+            if backendObj == None:
+                #Logging.logInstance.logError("Invalid backend type " + self.config["backend"][backend]["type"])
+                exit(104)
+
+            try:
+                if self.state[index] == 0:
+                    result = backendObj.send(dummyMsg,IP)
+                    if result:
+                        online += 1
+                        self.supportedBackends.append(self.config["backend"][backend]["type"])
+                    #print(IP, result)
+            except:
+                None
+            
+        if online == 0:
+            self.state[index] = 1
+
+    def sortInterfaces(self):
+        sorted = []
+        for item in self.supportedBackends:
+            if item not in sorted:
+                sorted.append(item)
+        self.supportedBackends = sorted
 
     # mark as faulted
     def fault(self, IP):
@@ -162,9 +216,10 @@ class DNSProviderObject:
         else:
             string+= "    id: " + bcolors.OKBLUE + self.id + bcolors.ENDC +"\n"
         count = 0
-        string+= bcolors.BOLD + "server            state          ping      role      desc"+ bcolors.ENDC +"\n"
+        string+= bcolors.BOLD + "server            state          ping      role      desc                               proto"+ bcolors.ENDC +"\n"
         for server in self.IPs:
-            rowFormat = "{:<18}{:<10}{:>16} {:<10}{:<30}"
+            rowFormat = "{:<18}{:<10}{:>16} {:<10}{:<35}{:<30}"
+            protos = ', '.join(self.supportedBackends)
             state = bcolors.FAIL + "OFFLINE " + bcolors.ENDC
             master = ""
             if self.isMaster[count]:
@@ -176,7 +231,7 @@ class DNSProviderObject:
                 state = bcolors.OKGREEN + "ONLINE  " + bcolors.ENDC
             if self.state[count] >= 2:
                 state = bcolors.WARNING + "FAULTED ({})".format(self.state[count]-1) + bcolors.ENDC
-            row = rowFormat.format(server, state, ping, master, self.comments[count])
+            row = rowFormat.format(server, state, ping, master, self.comments[count],protos)
             string+=row +"\n"
             count += 1
         if count == 0:
@@ -186,10 +241,18 @@ class DNSProviderObject:
 
 
 class DNSProviders:
-    def __init__(self, redisServer):
+    def __init__(self, redisServer, interfaces):
         self.providers = []
         self.master = None
         self.redisServer = redisServer
+        self.interfaces = interfaces
+
+    def checkInterfaces(self):
+        for provider in self.providers:
+            for ip in provider.IPs:
+                provider.checkInterfaces(ip)
+            provider.sortInterfaces()
+            # print (provider.providerName, provider.supportedBackends)
 
     def getProvider(self,ip):
         for provider in self.providers:
@@ -273,7 +336,7 @@ class DNSProviders:
             
             if strippedLine.startswith("[") and strippedLine.endswith("]"):
                 currentSection = strippedLine[1:-1]
-                self.providers.append(DNSProviderObject(currentSection))
+                self.providers.append(DNSProviderObject(currentSection,self.interfaces))
                 continue
 
             if strippedLine.startswith("$"):

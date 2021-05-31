@@ -22,7 +22,7 @@ class BackEnd_DoH(DNSBackEnd):
         # dns over https
         query = (base64.b64encode(data)).decode("utf-8").replace("=","")
         string = "https://{}/{}?dns={}".format(ip,self.config["url"],query) 
-        r =requests.get(string)
+        r =requests.get(string, timeout=1)
         recData = r.content
    
         if r.status_code == 200 and r.headers['Content-Type'] == 'application/dns-message':
