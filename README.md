@@ -1,6 +1,6 @@
 # DNS Integrity Server 
 
-This server acts as an DNS "Proxy" and transparently forwards the request to an specified server. The answer ist then sent back to the requestiing client.
+This server acts as an DNS "Proxy" and transparently forwards the request to an specified server. The answer is then sent back to the requestiing client.
 In addition to that, the server takes a list of other DNS-Servers and forwards the request to these as well. The results are now stored in ./debug.
 In the future, the server will be able to check the results and detect possible DNS-level censoring or manipulation.
 
